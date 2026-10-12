@@ -1,9 +1,11 @@
 /**
- * ArboTTS Pure JavaScript Indonesian G2P (Grapheme-to-Phoneme) Engine
+ * ArboTTS Pure JavaScript Bilingual (Indonesian & English) G2P Engine
  *
  * Fully client-side, zero-dependency ES module.
  * Reproduces the exact phoneme representation and token framing required by ArboTTS ONNX models.
  */
+
+import { EN_LEXICON } from "./en_dict.js";
 
 // Framing constants
 export const PAD_ID = 0;
@@ -459,14 +461,90 @@ function tokenize(text) {
   return tokens;
 }
 
+const EN_NUM_ONES = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+  "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"
+];
+const EN_NUM_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+/**
+ * Spell an integer number in English words.
+ */
+export function spellNumberEn(n) {
+  if (n < 0) return ["minus", ...spellNumberEn(-n)];
+  if (n < 20) return [EN_NUM_ONES[n]];
+  if (n < 100) {
+    const rem = n % 10;
+    return rem === 0 ? [EN_NUM_TENS[Math.floor(n / 10)]] : [EN_NUM_TENS[Math.floor(n / 10)], EN_NUM_ONES[rem]];
+  }
+  if (n < 1000) {
+    const h = Math.floor(n / 100);
+    const rem = n % 100;
+    const res = [EN_NUM_ONES[h], "hundred"];
+    if (rem > 0) res.push(...spellNumberEn(rem));
+    return res;
+  }
+  if (n < 1000000) {
+    const th = Math.floor(n / 1000);
+    const rem = n % 1000;
+    const res = [...spellNumberEn(th), "thousand"];
+    if (rem > 0) res.push(...spellNumberEn(rem));
+    return res;
+  }
+  return [n.toString()];
+}
+
+/**
+ * Convert an English word into IPA string using lexicon or rule-based fallback.
+ */
+export function englishWordToIpa(word) {
+  const w = word.toLowerCase().trim();
+  if (!w) return "";
+  if (EN_LEXICON[w]) return EN_LEXICON[w];
+
+  // Heuristic rule fallback for out-of-lexicon English words
+  let ipa = w
+    .replace(/tion\b/g, "ʃən")
+    .replace(/sion\b/g, "ʒən")
+    .replace(/cious\b/g, "ʃəs")
+    .replace(/tious\b/g, "ʃəs")
+    .replace(/ing\b/g, "ɪŋ")
+    .replace(/ed\b/g, "d")
+    .replace(/th/g, "θ")
+    .replace(/sh/g, "ʃ")
+    .replace(/ch/g, "tʃ")
+    .replace(/ph/g, "f")
+    .replace(/ee/g, "iː")
+    .replace(/oo/g, "uː")
+    .replace(/ea/g, "iː")
+    .replace(/oa/g, "oʊ")
+    .replace(/ai/g, "eɪ")
+    .replace(/ay/g, "eɪ")
+    .replace(/igh/g, "aɪ")
+    .replace(/qu/g, "kw")
+    .replace(/c(?=[eiy])/g, "s")
+    .replace(/c/g, "k")
+    .replace(/g/g, "ɡ")
+    .replace(/r/g, "ɹ")
+    .replace(/a/g, "æ")
+    .replace(/e/g, "ɛ")
+    .replace(/i/g, "ɪ")
+    .replace(/o/g, "ɒ")
+    .replace(/u/g, "ʌ");
+  return ipa;
+}
+
 /**
  * Phonemize text to IPA string.
+ * @param {string} text - Input text
+ * @param {string} lang - Language code ("id" or "en")
  */
-export function phonemizeToIpa(text) {
+export function phonemizeToIpa(text, lang = "id") {
   if (!text || !text.trim()) return "";
   const normalized = text.normalize("NFC");
   const tokens = tokenize(normalized);
   const pieces = [];
+  const isEn = (lang === "en");
 
   for (const [kind, val] of tokens) {
     if (kind === "space") {
@@ -474,10 +552,20 @@ export function phonemizeToIpa(text) {
     } else if (kind === "punct") {
       pieces.push(val);
     } else if (kind === "number") {
-      const words = spellNumber(parseInt(val, 10));
-      pieces.push(words.map((w) => wordToIpa(w)).join(" "));
+      const numVal = parseInt(val, 10);
+      if (isEn) {
+        const words = spellNumberEn(isNaN(numVal) ? 0 : numVal);
+        pieces.push(words.map((w) => englishWordToIpa(w)).join(" "));
+      } else {
+        const words = spellNumber(isNaN(numVal) ? 0 : numVal);
+        pieces.push(words.map((w) => wordToIpa(w)).join(" "));
+      }
     } else if (kind === "word") {
-      pieces.push(wordToIpa(val.toLowerCase()));
+      if (isEn) {
+        pieces.push(englishWordToIpa(val));
+      } else {
+        pieces.push(wordToIpa(val.toLowerCase()));
+      }
     }
   }
 
@@ -485,13 +573,14 @@ export function phonemizeToIpa(text) {
 }
 
 /**
- * Convert Indonesian text into phoneme IDs array for ArboTTS ONNX models.
+ * Convert text into phoneme IDs array for ArboTTS ONNX models.
  * @param {string} text - Input text
  * @param {Record<string, number[]>} phonemeIdMap - Mapping from symbol to [id] from *.onnx.json
+ * @param {string} lang - Language code ("id" or "en")
  * @returns {BigInt64Array} Formatted phoneme token IDs
  */
-export function textToPhonemeIds(text, phonemeIdMap) {
-  const ipa = phonemizeToIpa(text);
+export function textToPhonemeIds(text, phonemeIdMap, lang = "id") {
+  const ipa = phonemizeToIpa(text, lang);
   if (!ipa) return new BigInt64Array([BigInt(BOS_ID), BigInt(PAD_ID), BigInt(EOS_ID)]);
 
   // Normalize to NFD decomposing codepoints

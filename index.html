@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ArboTTS Studio — Client-Side WebAssembly Indonesian TTS</title>
-  <meta name="description" content="Demo sintesis suara Text-to-Speech Bahasa Indonesia 100% di browser tanpa server menggunakan WebAssembly ONNX Runtime.">
+  <title>ArboTTS Studio — Client-Side WebAssembly Bilingual TTS & Voice Cloning</title>
+  <meta name="description" content="Demo sintesis suara Text-to-Speech bilingual Bahasa Indonesia & Inggris 100% di browser tanpa server menggunakan WebAssembly ONNX Runtime dan Voice Cloning in-context.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙️</text></svg>">
   <style>
     :root {
@@ -16,7 +16,10 @@
       --text: #f3f4f6;
       --text-muted: #9ca3af;
       --success: #10b981;
+      --success-hover: #059669;
       --card-bg: #162032;
+      --chip-bg: #1e293b;
+      --border: #334155;
     }
     * {
       box-sizing: border-box;
@@ -36,14 +39,14 @@
     }
     .container {
       width: 100%;
-      max-width: 840px;
+      max-width: 860px;
       display: flex;
       flex-direction: column;
       gap: 20px;
     }
     header {
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
     .logo-badge {
       display: inline-flex;
@@ -52,7 +55,7 @@
       background: rgba(56, 189, 248, 0.12);
       color: var(--accent);
       border: 1px solid rgba(56, 189, 248, 0.3);
-      padding: 4px 12px;
+      padding: 4px 14px;
       border-radius: 999px;
       font-size: 0.82rem;
       font-weight: 600;
@@ -62,7 +65,7 @@
       font-size: 2.2rem;
       font-weight: 800;
       letter-spacing: -0.02em;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       background: linear-gradient(135deg, #ffffff 40%, #38bdf8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -70,7 +73,7 @@
     .subtitle {
       color: var(--text-muted);
       font-size: 0.95rem;
-      max-width: 600px;
+      max-width: 680px;
       margin: 0 auto;
     }
     .card {
@@ -115,10 +118,47 @@
       border-radius: 99px;
       transition: width 0.2s ease;
     }
+
+    /* Tabs Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 10px;
+      background: rgba(17, 24, 39, 0.7);
+      padding: 6px;
+      border-radius: 12px;
+      border: 1px solid var(--surface-border);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .tab-btn.active {
+      background: var(--card-bg);
+      color: var(--accent);
+      border-color: rgba(56, 189, 248, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
     label {
       display: block;
-      font-size: 0.88rem;
-      font-weight: 600;
+      font-size: 0.82rem;
+      font-weight: 700;
       color: var(--text-muted);
       margin-bottom: 8px;
       text-transform: uppercase;
@@ -126,13 +166,13 @@
     }
     textarea {
       width: 100%;
-      min-height: 110px;
+      min-height: 100px;
       background: var(--card-bg);
       border: 1px solid var(--surface-border);
       border-radius: 12px;
       padding: 14px;
       color: var(--text);
-      font-size: 1.05rem;
+      font-size: 1rem;
       resize: vertical;
       outline: none;
       transition: border-color 0.2s;
@@ -140,52 +180,137 @@
     textarea:focus {
       border-color: var(--accent);
     }
-    .chips-wrapper {
-      margin-top: 10px;
+
+    .presets-group {
+      margin-bottom: 16px;
+    }
+    .presets-row {
       display: flex;
+      align-items: center;
       flex-wrap: wrap;
       gap: 8px;
+      margin-bottom: 8px;
     }
-    .chip {
+    .preset-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 45px;
+    }
+    .preset-btn {
       background: var(--card-bg);
       border: 1px solid var(--surface-border);
       color: var(--text-muted);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       padding: 6px 12px;
       border-radius: 999px;
       cursor: pointer;
       transition: all 0.2s;
       user-select: none;
     }
-    .chip:hover {
+    .preset-btn:hover {
       background: rgba(56, 189, 248, 0.1);
       border-color: var(--accent);
       color: var(--accent);
     }
-    .controls-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
+
+    .speakers-section {
       margin: 18px 0;
     }
-    select {
-      width: 100%;
+    .speakers-category {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+      letter-spacing: 0.03em;
+    }
+    .speakers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .speaker-card {
       background: var(--card-bg);
       border: 1px solid var(--surface-border);
       border-radius: 10px;
-      padding: 10px 14px;
-      color: var(--text);
-      font-size: 0.95rem;
-      outline: none;
+      padding: 12px;
       cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+      user-select: none;
     }
-    select:focus {
+    .speaker-card:hover {
+      border-color: rgba(56, 189, 248, 0.5);
+      background: rgba(56, 189, 248, 0.05);
+    }
+    .speaker-card.active {
+      background: rgba(56, 189, 248, 0.12);
       border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
     }
+    .speaker-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .speaker-card.active .speaker-header {
+      color: var(--accent);
+    }
+    .speaker-persona {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 18px 0;
+    }
+    .control-card {
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .lang-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .lang-btn {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .lang-btn:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+    .lang-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     .slider-row {
       display: flex;
       align-items: center;
       gap: 12px;
+      margin-top: 8px;
     }
     input[type="range"] {
       flex: 1;
@@ -199,40 +324,39 @@
       color: var(--accent);
       min-width: 42px;
     }
-    .action-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 12px;
-    }
-    button.btn-primary {
+
+    .action-btn {
+      width: 100%;
       background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
       color: #0b0f19;
-      font-size: 1rem;
+      font-size: 1.02rem;
       font-weight: 700;
       border: none;
       border-radius: 12px;
-      padding: 12px 28px;
+      padding: 14px 28px;
       cursor: pointer;
-      display: inline-flex;
+      display: flex;
+      justify-content: center;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       transition: opacity 0.2s, transform 0.1s;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
     }
-    button.btn-primary:hover:not(:disabled) {
+    .action-btn:hover:not(:disabled) {
       opacity: 0.92;
       transform: translateY(-1px);
     }
-    button.btn-primary:active:not(:disabled) {
+    .action-btn:active:not(:disabled) {
       transform: translateY(0);
     }
-    button.btn-primary:disabled {
+    .action-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+      box-shadow: none;
     }
     .spinner {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border: 2px solid rgba(11, 15, 25, 0.3);
       border-radius: 50%;
       border-top-color: #0b0f19;
@@ -241,13 +365,75 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
-    .playback-card {
-      margin-top: 16px;
-      padding-top: 16px;
+
+    /* Voice Cloning Tab */
+    .clone-notice {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      font-size: 0.88rem;
+      color: #bae6fd;
+      line-height: 1.5;
+    }
+    .clone-dropzone {
+      border: 2px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      background: var(--card-bg);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+    .clone-dropzone:hover, .clone-dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.06);
+    }
+    .analysis-card {
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .analysis-item {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+    }
+    .analysis-item span {
+      color: var(--text-muted);
+      display: block;
+    }
+    .analysis-item strong {
+      color: var(--accent);
+      font-size: 0.92rem;
+      margin-top: 2px;
+      display: block;
+    }
+
+    /* Playback & Output */
+    .output-card {
+      margin-top: 20px;
+      padding-top: 20px;
       border-top: 1px solid var(--surface-border);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
+    }
+    .output-card.hidden {
+      display: none;
     }
     audio {
       width: 100%;
@@ -256,15 +442,15 @@
     }
     .btn-download {
       align-self: flex-start;
-      display: none;
+      display: inline-flex;
       align-items: center;
       gap: 6px;
       background: rgba(255, 255, 255, 0.06);
       border: 1px solid var(--surface-border);
       color: var(--text);
       font-size: 0.85rem;
-      font-weight: 500;
-      padding: 8px 16px;
+      font-weight: 600;
+      padding: 8px 18px;
       border-radius: 8px;
       text-decoration: none;
       transition: all 0.2s;
@@ -276,28 +462,27 @@
     }
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 12px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
     }
     .metric-card {
       background: var(--card-bg);
       border: 1px solid var(--surface-border);
-      padding: 12px;
+      padding: 10px;
       border-radius: 10px;
       text-align: center;
     }
     .metric-label {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
     .metric-value {
-      font-size: 1.15rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: var(--accent);
-      margin-top: 4px;
+      margin-top: 2px;
     }
     .phoneme-card {
       background: var(--card-bg);
@@ -309,6 +494,7 @@
       font-family: monospace;
       word-break: break-all;
     }
+
     footer {
       text-align: center;
       margin-top: 16px;
@@ -322,9 +508,11 @@
     footer a:hover {
       text-decoration: underline;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 680px) {
       h1 { font-size: 1.7rem; }
-      .metrics-grid { grid-template-columns: 1fr; }
+      .controls-grid { grid-template-columns: 1fr; }
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .speakers-grid { grid-template-columns: 1fr 1fr; }
     }
   </style>
   <!-- ONNX Runtime Web (WASM SIMD engine) -->
@@ -336,9 +524,9 @@
       <div class="logo-badge">
         <span>⚡</span> 100% Client-Side WebAssembly • Zero Server Cost
       </div>
-      <h1>ArboTTS WebAssembly</h1>
+      <h1>ArboTTS Studio 🎙️</h1>
       <p class="subtitle">
-        Sintesis suara Bahasa Indonesia alami yang berjalan langsung di browser pengguna Anda. Beban komputasi 0% di server, aman, dan hemat biaya.
+        Sintesis suara Text-to-Speech bilingual Bahasa Indonesia & Inggris alami berkarakter penyiar berita dengan 7 persona studio dan Voice Cloning langsung di browser Anda.
       </p>
     </header>
 
@@ -349,50 +537,197 @@
       </div>
     </div>
 
+    <!-- TABS NAVIGATION -->
+    <div class="tabs-nav">
+      <button id="tab-nav-studio" class="tab-btn active" type="button">
+        <span>🎭 Studio Karakter Bawaan (7 Persona)</span>
+      </button>
+      <button id="tab-nav-clone" class="tab-btn" type="button">
+        <span>🎙️ Voice Cloning (Unggah Suara Sendiri)</span>
+      </button>
+    </div>
+
+    <!-- MAIN CONTENT CARD -->
     <main class="card">
-      <label for="text-input">Teks Bahasa Indonesia</label>
-      <textarea id="text-input" placeholder="Ketik kalimat bahasa Indonesia di sini...">Halo! Selamat pagi, nama saya Arbo. ArboTTS adalah text-to-speech bahasa Indonesia yang cepat dan ringan.</textarea>
-
-      <div class="chips-wrapper">
-        <span class="chip" data-text="Halo! Selamat pagi, nama saya Arbo. Senang sekali bisa menyapa Anda hari ini.">👋 Sapaan Ramah</span>
-        <span class="chip" data-text="Rapat koordinasi mingguan akan diselenggarakan hari Senin pukul sembilan pagi di ruang rapat lantai tiga.">🏢 Info Kantor</span>
-        <span class="chip" data-text="Total belanja Anda hari ini adalah seratus dua puluh lima ribu lima ratus rupiah. Terima kasih.">💳 Transaksi Angka</span>
-        <span class="chip" data-text="Sore nanti kita makan sate ayam dan bebek goreng lezat di warung tepi jalan.">🍢 Kuliner & Pepet</span>
-      </div>
-
-      <div class="controls-grid">
-        <div>
-          <label for="speaker-select">Karakter Suara</label>
-          <select id="speaker-select">
-            <option value="0">Arbo (Pria • Hangat & Berwibawa)</option>
-            <option value="1">Arba (Wanita • Jernih & Ramah)</option>
-          </select>
-        </div>
-
-        <div>
-          <label>Kecepatan Bicara</label>
-          <div class="slider-row">
-            <input type="range" id="speed-range" min="0.6" max="1.4" step="0.05" value="0.85">
-            <span id="speed-val" class="slider-val">0.85x</span>
+      <!-- TAB 1: STUDIO 7 PERSONA -->
+      <section id="tab-studio">
+        <div class="presets-group">
+          <div class="presets-row">
+            <span class="preset-label">🇮🇩 ID:</span>
+            <span class="preset-btn" data-lang="id" data-text="Halo, selamat pagi, Indonesia. Awali hari Seninmu dengan penuh ceria!">🌅 Sapaan Pagi</span>
+            <span class="preset-btn" data-lang="id" data-text="Harga beras medium di pasar tradisional mencapai empat belas ribu rupiah per kilogram hari ini.">🌾 Berita Pasar</span>
+            <span class="preset-btn" data-lang="id" data-text="Ibu membeli sate ayam dan tempe bacem lezat di tepi jalan sore hari.">🦆 Pepet & Taling</span>
+            <span class="preset-btn" data-lang="id" data-text="Total belanja Anda hari ini adalah seratus dua puluh lima ribu lima ratus rupiah. Terima kasih.">💳 Transaksi Angka</span>
+          </div>
+          <div class="presets-row">
+            <span class="preset-label">🇬🇧 EN:</span>
+            <span class="preset-btn" data-lang="en" data-text="Good morning, and welcome to ArboTTS. Have a wonderful and productive day!">🇬🇧 English Welcome</span>
+            <span class="preset-btn" data-lang="en" data-text="Breaking news: global tech markets showed positive momentum today following the latest report.">🎙️ Broadcast News</span>
+            <span class="preset-btn" data-lang="en" data-text="Certainly! I have scheduled your team meeting for tomorrow morning at nine.">🤖 Smart Assistant</span>
+            <span class="preset-btn" data-lang="en" data-text="The old oak tree stood quietly at the edge of the forest, watching generations pass by.">📖 Calm Narration</span>
           </div>
         </div>
-      </div>
 
-      <div class="action-row">
-        <button id="btn-synthesize" class="btn-primary" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          Suarakan
+        <label for="text-input">Teks Kalimat yang Ingin Disuarakan</label>
+        <textarea id="text-input" placeholder="Ketik kalimat di sini...">Halo, selamat pagi, Indonesia. Awali hari Seninmu dengan penuh ceria!</textarea>
+
+        <div class="speakers-section">
+          <div class="speakers-category">⭐ PERSONA UTAMA (PRIA - REKOMENDASI UNTUK INTONASI TERBAIK):</div>
+          <div class="speakers-grid">
+            <div class="speaker-card active" data-speaker="arbo">
+              <div class="speaker-header"><span>🎙️</span> Arbo</div>
+              <div class="speaker-persona">Penyiar Berita Formal • Wibawa & Tegas</div>
+            </div>
+            <div class="speaker-card" data-speaker="bimo">
+              <div class="speaker-header"><span>📢</span> Bimo</div>
+              <div class="speaker-persona">Baritone Berat & Berbobot • Dokumenter</div>
+            </div>
+            <div class="speaker-card" data-speaker="dimas">
+              <div class="speaker-header"><span>⚡</span> Dimas</div>
+              <div class="speaker-persona">Pria Muda Kasual & Energik • Asisten</div>
+            </div>
+            <div class="speaker-card" data-speaker="danu">
+              <div class="speaker-header"><span>☕</span> Danu</div>
+              <div class="speaker-persona">Narator Santun & Tenang • Audiobook</div>
+            </div>
+          </div>
+
+          <div class="speakers-category" style="color: #f472b6;">👩 PERSONA TAMBAHAN (WANITA):</div>
+          <div class="speakers-grid">
+            <div class="speaker-card" data-speaker="arba">
+              <div class="speaker-header"><span>👩</span> Arba</div>
+              <div class="speaker-persona">Presenter Berita Profesional • Jernih</div>
+            </div>
+            <div class="speaker-card" data-speaker="sita">
+              <div class="speaker-header"><span>🤖</span> Sita</div>
+              <div class="speaker-persona">Asisten Cerdas & Ceria • Interaktif</div>
+            </div>
+            <div class="speaker-card" data-speaker="maya">
+              <div class="speaker-header"><span>📖</span> Maya</div>
+              <div class="speaker-persona">Narator Lembut & Hangat • Storyteller</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control-card">
+            <label>Bahasa Pengucapan (Language)</label>
+            <div class="lang-row">
+              <button type="button" class="lang-btn active" id="btn-lang-id" data-lang="id">🇮🇩 Indonesia</button>
+              <button type="button" class="lang-btn" id="btn-lang-en" data-lang="en">🇬🇧 English</button>
+            </div>
+          </div>
+
+          <div class="control-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="margin-bottom: 0;">Kecepatan Bicara (Speed)</label>
+              <span id="speed-val" class="slider-val">0.85x</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" id="speed-range" min="0.5" max="1.5" step="0.05" value="0.85">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-synthesize" class="action-btn" type="button" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Sintesis Suara (Generate Speech)
         </button>
-      </div>
+      </section>
 
-      <div class="playback-card">
+      <!-- TAB 2: VOICE CLONING -->
+      <section id="tab-clone" style="display: none;">
+        <div class="clone-notice">
+          <strong>🔒 100% Privasi & Client-Side:</strong> Berkas rekaman audio Anda dianalisis langsung di memori browser Web Audio API komputer Anda tanpa pernah dikirim atau diunggah ke server manapun.
+        </div>
+
+        <label>1. Unggah Audio Referensi Suara Anda (5–15 Detik):</label>
+        <div id="clone-dropzone" class="clone-dropzone">
+          <div style="font-size: 2rem; margin-bottom: 6px;">📁</div>
+          <div id="clone-filename" style="font-weight: 700; color: var(--text);">
+            Klik atau Tarik Berkas Audio ke Sini (WAV, MP3, M4A, OGG)
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+            Atau gunakan rekaman suara bicara yang jernih tanpa musik latar
+          </div>
+          <input type="file" id="clone-file-input" accept="audio/*" style="display: none;">
+        </div>
+
+        <!-- Reference Audio Analysis Display -->
+        <div id="clone-analysis" class="analysis-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label style="margin-bottom: 0;">Profil Akustik Suara Terdeteksi</label>
+            <audio id="clone-ref-player" controls style="height: 32px; width: 220px;"></audio>
+          </div>
+          <div class="analysis-grid">
+            <div class="analysis-item">
+              <span>Durasi Audio</span>
+              <strong id="ref-duration">-</strong>
+            </div>
+            <div class="analysis-item">
+              <span>Sample Rate</span>
+              <strong id="ref-sr">-</strong>
+            </div>
+            <div class="analysis-item">
+              <span>Estimasi F0 (Pitch)</span>
+              <strong id="ref-f0">-</strong>
+            </div>
+            <div class="analysis-item">
+              <span>Base Speaker</span>
+              <strong id="ref-speaker">-</strong>
+            </div>
+            <div class="analysis-item">
+              <span>Penyesuaian Timbre</span>
+              <strong id="ref-semitones">-</strong>
+            </div>
+          </div>
+        </div>
+
+        <label for="clone-target-input">2. Kalimat Baru yang Ingin Diucapkan Suara Kloning:</label>
+        <textarea id="clone-target-input" placeholder="Ketik kalimat apapun yang ingin disuarakan...">Halo! Ini adalah contoh suara saya sendiri hasil uji coba kloning kecerdasan buatan ArboTTS yang berjalan langsung di browser.</textarea>
+
+        <div class="controls-grid">
+          <div class="control-card">
+            <label>Bahasa Kloning</label>
+            <div class="lang-row">
+              <button type="button" class="lang-btn active" id="btn-clone-lang-id" data-lang="id">🇮🇩 Indonesia</button>
+              <button type="button" class="lang-btn" id="btn-clone-lang-en" data-lang="en">🇬🇧 English</button>
+            </div>
+          </div>
+
+          <div class="control-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label style="margin-bottom: 0;">Kecepatan Bicara</label>
+              <span id="clone-speed-val" class="slider-val">0.85x</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" id="clone-speed-range" min="0.5" max="1.5" step="0.05" value="0.85">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-clone-synthesize" class="action-btn" type="button" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          Mulai Kloning & Sintesis Suara
+        </button>
+      </section>
+
+      <!-- AUDIO OUTPUT & METRICS -->
+      <div id="output-section" class="output-card hidden">
+        <label>Hasil Audio Sintesis</label>
         <audio id="audio-player" controls></audio>
-        <a id="btn-download" class="btn-download" href="#" download="arbotts_audio.wav">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Unduh WAV
-        </a>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <a id="btn-download" class="btn-download" href="#" download="arbotts_audio.wav">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Unduh Berkas WAV
+          </a>
+        </div>
 
         <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Mode / Persona</div>
+            <div id="stat-persona" class="metric-value">-</div>
+          </div>
           <div class="metric-card">
             <div class="metric-label">Latensi Sintesis</div>
             <div id="stat-latency" class="metric-value">-</div>
@@ -416,11 +751,12 @@
 
     <footer>
       <p>
-        Ditenagai oleh <strong>ArboTTS Small</strong> (32.8 MB VITS V2) &bull;
-        Kode sumber tersedia di <a href="https://github.com/freaktopus/arboTTS" target="_blank" rel="noopener">GitHub: freaktopus/arboTTS</a>
+        Ditenagai oleh <strong>ArboTTS v2.0</strong> (60.5 MB VITS V2 ONNX) &bull;
+        Repositori: <a href="https://github.com/ARBO-TEAM/arboTTS" target="_blank" rel="noopener">ARBO-TEAM/arboTTS</a> &bull;
+        Demo Source: <a href="https://github.com/ARBO-TEAM/arbotts-demo" target="_blank" rel="noopener">ARBO-TEAM/arbotts-demo</a>
       </p>
       <p style="margin-top: 4px; font-size: 0.76rem; opacity: 0.7;">
-        Audio diproses 100% lokal di browser Anda via WebAssembly. Teks tidak pernah dikirim ke server.
+        Semua proses sintesis suara dan adaptasi profil kloning berjalan 100% lokal di browser pengguna Anda via WebAssembly. Teks dan audio Anda tidak pernah dikirim ke server.
       </p>
     </footer>
   </div>
