@@ -1,0 +1,16 @@
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+# Node / dependencies
+node_modules/
+npm-debug.log*
+
+# Personal files / test recordings
+recordings/
+*.wav
+*.mp3
+*.m4a
+!demo-samples/*.wav
