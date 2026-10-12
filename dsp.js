@@ -53,41 +53,50 @@ export const SPEAKERS = {
     }
   },
   arba: {
-    id: 1,
+    id: 0,
     gender: "female",
     name: "Arba",
     persona: "Presenter Berita Profesional",
     icon: "👩",
     description: "Artikulasi jernih, santun, lugas dengan kehangatan mid-range.",
     dsp: {
-      pitch_shift_semitones: -0.8,
-      presence_boost_hz: 3500,
-      presence_gain: 0.25
+      pitch_shift_semitones: 9.2,
+      highpass_cut_hz: 180,
+      presence_boost_hz: 3800,
+      presence_gain: 0.3,
+      formant_peak_hz: 1400,
+      formant_gain: 0.25
     }
   },
   sita: {
-    id: 2,
+    id: 0,
     gender: "female",
     name: "Sita",
     persona: "Asisten Interaktif Cerdas",
     icon: "🤖",
     description: "Ceria, bersahabat, tempo percakapan interaktif cerdas.",
     dsp: {
-      pitch_shift_semitones: 1.2,
-      presence_boost_hz: 3500,
-      presence_gain: 0.25
+      pitch_shift_semitones: 11.2,
+      highpass_cut_hz: 200,
+      presence_boost_hz: 4200,
+      presence_gain: 0.35,
+      formant_peak_hz: 1600,
+      formant_gain: 0.3
     }
   },
   maya: {
-    id: 3,
+    id: 0,
     gender: "female",
     name: "Maya",
     persona: "Narator Tenang & Storyteller",
     icon: "📖",
     description: "Lembut, santai, tekstur hangat dengan ritme halus untuk dongeng.",
     dsp: {
-      pitch_shift_semitones: -1.4,
-      lowpass_warmth_hz: 5500
+      pitch_shift_semitones: 8.2,
+      highpass_cut_hz: 160,
+      formant_peak_hz: 1300,
+      formant_gain: 0.2,
+      lowpass_warmth_hz: 6000
     }
   }
 };
@@ -212,7 +221,12 @@ export async function applyAcousticDsp(samples, sampleRate, dspRecipe) {
 
   // 2. Web Audio Biquad Equalization
   if (typeof window !== "undefined" && (window.OfflineAudioContext || window.webkitOfflineAudioContext)) {
-    if (dspRecipe.presence_boost_hz || dspRecipe.lowpass_warmth_hz) {
+    if (
+      dspRecipe.presence_boost_hz ||
+      dspRecipe.lowpass_warmth_hz ||
+      dspRecipe.highpass_cut_hz ||
+      dspRecipe.formant_peak_hz
+    ) {
       try {
         const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
         const offlineCtx = new Ctx(1, processed.length, sampleRate);
@@ -222,6 +236,27 @@ export async function applyAcousticDsp(samples, sampleRate, dspRecipe) {
         const source = offlineCtx.createBufferSource();
         source.buffer = buffer;
         let lastNode = source;
+
+        // Cut male chest resonance for female personas
+        if (dspRecipe.highpass_cut_hz) {
+          const highpass = offlineCtx.createBiquadFilter();
+          highpass.type = "highpass";
+          highpass.frequency.value = dspRecipe.highpass_cut_hz;
+          highpass.Q.value = 0.707;
+          lastNode.connect(highpass);
+          lastNode = highpass;
+        }
+
+        // Female formant enhancement
+        if (dspRecipe.formant_peak_hz) {
+          const formant = offlineCtx.createBiquadFilter();
+          formant.type = "peaking";
+          formant.frequency.value = dspRecipe.formant_peak_hz;
+          formant.gain.value = (dspRecipe.formant_gain || 0.25) * 12; // dB
+          formant.Q.value = 1.2;
+          lastNode.connect(formant);
+          lastNode = formant;
+        }
 
         if (dspRecipe.presence_boost_hz) {
           const presence = offlineCtx.createBiquadFilter();
@@ -330,20 +365,27 @@ export function analyzeReferenceAudio(audioBuffer) {
   // Male median F0 is typically 85-155 Hz, Female 165-255 Hz
   const isFemale = f0 >= 165;
   const baseSpeakerId = isFemale ? 1 : 0;
-  const baseF0 = isFemale ? 195 : 120;
 
-  // Semitone difference relative to Arbo (120 Hz) or Arba (195 Hz)
-  const semitones = Math.max(-3.5, Math.min(3.5, 12 * Math.log2(f0 / baseF0)));
+  // Semitone difference relative to Arbo base model (~120 Hz)
+  const semitones = Math.max(-4.0, Math.min(14.0, 12 * Math.log2(f0 / 120)));
 
   const recipe = {
     pitch_shift_semitones: parseFloat(semitones.toFixed(2))
   };
 
-  if (centroid > 3200) {
-    recipe.presence_boost_hz = 3500;
-    recipe.presence_gain = 0.2;
-  } else if (centroid < 1800) {
-    recipe.lowpass_warmth_hz = 5500;
+  if (isFemale) {
+    recipe.highpass_cut_hz = 180;
+    recipe.formant_peak_hz = 1450;
+    recipe.formant_gain = 0.25;
+    recipe.presence_boost_hz = 3800;
+    recipe.presence_gain = 0.3;
+  } else {
+    if (centroid > 3200) {
+      recipe.presence_boost_hz = 3500;
+      recipe.presence_gain = 0.2;
+    } else if (centroid < 1800) {
+      recipe.lowpass_warmth_hz = 5500;
+    }
   }
 
   return {
