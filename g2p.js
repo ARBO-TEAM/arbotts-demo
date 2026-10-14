@@ -12,6 +12,31 @@ export const PAD_ID = 0;
 export const BOS_ID = 1;
 export const EOS_ID = 2;
 
+// Known Indonesian words where 'e' is taling /e/
+export const KNOWN_TALING = new Set([
+  "bebek", "meja", "sore", "capek", "sate", "tempe", "lele", "tante",
+  "nenek", "kakek", "kolega", "model", "modern", "konser", "paket", "tiket",
+  "presiden", "hotel", "kafe", "periode", "tema", "teks", "pesta", "desa",
+  "daerah", "merah", "lewat", "pena", "belok", "tenda", "level", "elemen",
+  "kue", "kode", "mode", "ide", "tape", "toge", "onde", "bemo"
+]);
+
+export const PARADEE_PEPET_PREFIXES = ["ber", "bel", "be", "men", "mem", "meng", "me", "per", "pel", "pe", "ter", "te", "se", "ke"];
+
+export function detectLang(text) {
+  const words = text.toLowerCase().match(/\b[a-zA-Z]+\b/g);
+  if (!words || words.length === 0) return "id";
+  const enMarkers = new Set(["the", "is", "are", "this", "that", "and", "to", "of", "in", "for", "with", "welcome", "good", "morning", "hello", "we", "you", "have", "a", "an"]);
+  const idMarkers = new Set(["yang", "dan", "di", "ke", "dari", "ini", "itu", "untuk", "pada", "dengan", "adalah", "selamat", "pagi", "hari", "bisa", "akan", "sudah"]);
+  let enHits = 0;
+  let idHits = 0;
+  for (const w of words) {
+    if (enMarkers.has(w)) enHits++;
+    if (idMarkers.has(w)) idHits++;
+  }
+  return enHits > idHits ? "en" : "id";
+}
+
 // Piper punctuation marks
 export const PUNCTUATION_MARKS = "!'(),-.:;?\"";
 
@@ -600,3 +625,144 @@ export function textToPhonemeIds(text, phonemeIdMap, lang = "id") {
   ids.push(BigInt(EOS_ID));
   return new BigInt64Array(ids);
 }
+
+/**
+ * Resolve pepet vs taling for Paradee Indonesian G2P.
+ */
+export function resolvePepet(w) {
+  const wLower = w.toLowerCase();
+  if (KNOWN_TALING.has(wLower)) {
+    return wLower;
+  }
+  if (PEPET_ROOTS.has(wLower)) {
+    const chars = Array.from(wLower);
+    const vowelIndices = [];
+    for (let i = 0; i < chars.length; i++) {
+      if ("aeiou".includes(chars[i])) vowelIndices.push(i);
+    }
+    if (vowelIndices.length >= 2) {
+      const penultIdx = vowelIndices[vowelIndices.length - 2];
+      if (chars[penultIdx] === "e") chars[penultIdx] = "ə";
+    } else if (vowelIndices.length === 1 && chars[vowelIndices[0]] === "e") {
+      chars[vowelIndices[0]] = "ə";
+    }
+    return chars.join("");
+  }
+
+  for (const pfx of PARADEE_PEPET_PREFIXES) {
+    if (wLower.startsWith(pfx) && wLower.length > pfx.length + 2) {
+      const root = wLower.slice(pfx.length);
+      const pfxPepet = pfx.replace(/e/g, "ə");
+      return pfxPepet + resolvePepet(root);
+    }
+  }
+
+  const chars = Array.from(wLower);
+  const vowelIndices = [];
+  for (let i = 0; i < chars.length; i++) {
+    if ("aeiou".includes(chars[i])) vowelIndices.push(i);
+  }
+  if (vowelIndices.length >= 2) {
+    const penult = vowelIndices[vowelIndices.length - 2];
+    if (chars[penult] === "e") chars[penult] = "ə";
+  }
+  return chars.join("");
+}
+
+/**
+ * Convert Indonesian word to Kokoro/Paradee-compatible IPA.
+ */
+export function wordToIdIpa(w) {
+  let wLower = resolvePepet(w);
+  if (wLower.endsWith("k") && wLower.length > 2) {
+    wLower = wLower.slice(0, -1) + "ʔ";
+  }
+  wLower = wLower
+    .replace(/ng/g, "ŋ")
+    .replace(/ny/g, "ɲ")
+    .replace(/sy/g, "ʃ")
+    .replace(/kh/g, "x")
+    .replace(/ai/g, "aj")
+    .replace(/au/g, "aw")
+    .replace(/oi/g, "oj");
+
+  const mapping = {
+    c: "tʃ",
+    j: "dʒ",
+    y: "j",
+    g: "ɡ",
+  };
+  const res = [];
+  for (const ch of wLower) {
+    res.push(mapping[ch] || ch);
+  }
+  return res.join("");
+}
+
+/**
+ * Convert full Indonesian text to Kokoro/Paradee IPA string.
+ */
+export function textToIdIpa(text) {
+  text = text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  const tokens = text.match(/[\w']+|[.,!?;:\-—–]/g) || [];
+  const out = [];
+  for (const t of tokens) {
+    if (/^[.,!?;:\-—–]$/.test(t)) {
+      out.push(t);
+    } else {
+      out.push(wordToIdIpa(t));
+    }
+  }
+  let res = out.join(" ");
+  res = res.replace(/\s+([.,!?;:\-—–])/g, "$1");
+  return res;
+}
+
+/**
+ * Convert full English text to Kokoro/Paradee IPA string.
+ */
+export function textToEnIpa(text) {
+  text = text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  const tokens = text.match(/[\w']+|[.,!?;:\-—–]/g) || [];
+  const out = [];
+  for (const t of tokens) {
+    if (/^[.,!?;:\-—–]$/.test(t)) {
+      out.push(t);
+    } else {
+      const w = t.toLowerCase();
+      out.push(EN_LEXICON[w] || englishWordToIpa(w));
+    }
+  }
+  let res = out.join(" ");
+  res = res.replace(/\s+([.,!?;:\-—–])/g, "$1");
+  return res;
+}
+
+/**
+ * Convert text into Paradee-8M token IDs and IPA string.
+ * @param {string} text - Input text
+ * @param {Record<string, number>} vocab - Mapping from IPA character to token ID
+ * @param {string} lang - 'id', 'en', or 'auto'
+ */
+export function textToParadeeTokens(text, vocab, lang = "id") {
+  const targetLang = lang.toLowerCase() === "auto" ? detectLang(text) : lang.toLowerCase();
+  const ipa = targetLang.startsWith("en") ? textToEnIpa(text) : textToIdIpa(text);
+
+  const tokens = [];
+  for (const c of ipa) {
+    if (vocab[c] !== undefined) {
+      tokens.push(vocab[c]);
+    }
+  }
+
+  // Input IDs framed with 0 at start and end: [0, ...tokens, 0]
+  const inputIds = new BigInt64Array(tokens.length + 2);
+  inputIds[0] = 0n;
+  for (let i = 0; i < tokens.length; i++) {
+    inputIds[i + 1] = BigInt(tokens[i]);
+  }
+  inputIds[tokens.length + 1] = 0n;
+
+  return { ipa, inputIds, tokens, lang: targetLang };
+}
+

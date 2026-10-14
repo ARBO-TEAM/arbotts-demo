@@ -121,7 +121,7 @@ function resample(samples, ratio) {
 /**
  * SOLA (Synchronized Overlap-Add) Time Stretch
  */
-function solaStretch(input, alpha, sampleRate = 22050) {
+function solaStretch(input, alpha, sampleRate = 24000) {
   if (Math.abs(alpha - 1.0) < 0.01) return input;
   const winSize = Math.round(sampleRate * 0.025); // ~25ms
   const hopOut = Math.round(winSize / 2);
@@ -176,7 +176,7 @@ function solaStretch(input, alpha, sampleRate = 22050) {
 /**
  * Pitch shift Float32Array PCM samples by semitones.
  */
-export function pitchShiftAudio(samples, semitones, sampleRate = 22050) {
+export function pitchShiftAudio(samples, semitones, sampleRate = 24000) {
   if (Math.abs(semitones) < 0.05) return samples;
   const pitchRatio = Math.pow(2, semitones / 12);
   const resampled = resample(samples, pitchRatio);

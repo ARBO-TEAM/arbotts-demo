@@ -1,4 +1,4 @@
-import { textToPhonemeIds, phonemizeToIpa } from "./g2p.js";
+import { textToParadeeTokens, phonemizeToIpa } from "./g2p.js";
 import { encodeWav } from "./wav.js";
 import { SPEAKERS, applyAcousticDsp, analyzeReferenceAudio, peakNormalize } from "./dsp.js";
 
@@ -59,11 +59,11 @@ let cloneAnalysisResult = null;
 let audioContext = null;
 
 // IndexedDB Caching Constants
-const DB_NAME = "ArboTTS_Cache_v2";
+const DB_NAME = "ArboTTS_Cache_v3";
 const STORE_NAME = "models";
-const DEFAULT_MODEL_NAME = "arbotts_v1.onnx";
+const DEFAULT_MODEL_NAME = "arbo_paradee_8m.onnx";
 const MODEL_URL = `models/${DEFAULT_MODEL_NAME}`;
-const CONFIG_URL = "models/arbotts_v1.onnx.json";
+const CONFIG_URL = "models/vocab.json";
 
 function getAudioContext() {
   if (!audioContext) {
@@ -125,7 +125,7 @@ async function fetchModelWithProgress(url, onProgress) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`HTTP error ${resp.status} fetching model`);
   const contentLength = resp.headers.get("Content-Length");
-  const total = contentLength ? parseInt(contentLength, 10) : 63516051;
+  const total = contentLength ? parseInt(contentLength, 10) : 9037971;
 
   if (!resp.body) {
     const buf = await resp.arrayBuffer();
@@ -170,10 +170,10 @@ async function initModel() {
     // 2. Fetch or Read Model Buffer
     let modelBuffer = await getCachedModel(DEFAULT_MODEL_NAME);
     if (modelBuffer) {
-      statusText.textContent = "Model ArboTTS dimuat dari cache IndexedDB...";
+      statusText.textContent = "Model ArboTTS Paradee-8M dimuat dari cache IndexedDB...";
       progressBar.style.width = "75%";
     } else {
-      statusText.textContent = "Mengunduh model ArboTTS v2.0 (63.5 MB)...";
+      statusText.textContent = "Mengunduh model ArboTTS Paradee-8M (9.0 MB)...";
       modelBuffer = await fetchModelWithProgress(MODEL_URL, (loaded, total, pct) => {
         const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
         const mbTotal = (total / (1024 * 1024)).toFixed(1);
@@ -184,7 +184,7 @@ async function initModel() {
     }
 
     // 3. Initialize ORT Session
-    statusText.textContent = "Menginisialisasi WebAssembly Engine SIMD...";
+    statusText.textContent = "Menginisialisasi WebAssembly Engine SIMD (Paradee-8M)...";
     progressBar.style.width = "85%";
 
     if (window.ort) {
@@ -202,7 +202,7 @@ async function initModel() {
     }
 
     progressBar.style.width = "100%";
-    statusText.textContent = "Siap digunakan! (WebAssembly SIMD Aktif)";
+    statusText.textContent = "Siap digunakan! (Paradee-8M 24kHz SIMD Aktif)";
     setTimeout(() => {
       statusCard.classList.add("hidden");
     }, 1200);
@@ -367,49 +367,39 @@ async function runSynthesis({ text, lang, speakerKey, dspRecipe, speed, modeLabe
   }
 
   const startTime = performance.now();
-  const phonemeMap = modelConfig.phoneme_id_map || {};
 
-  // 1. Text to IPA and Piper token framing
-  const ipaStr = phonemizeToIpa(text, lang);
-  statPhonemes.textContent = ipaStr || "-";
+  // 1. Text to IPA and Paradee token framing
+  const { ipa, inputIds, tokens, lang: detectedLang } = textToParadeeTokens(text, modelConfig, lang);
+  statPhonemes.textContent = ipa || "-";
 
-  const idsBigInt = textToPhonemeIds(text, phonemeMap, lang);
-  const seqLen = idsBigInt.length;
+  if (!tokens || tokens.length === 0) {
+    alert("Tidak ada karakter yang valid untuk disuarakan.");
+    return;
+  }
 
   // 2. Prepare ONNX Input Tensors
-  const inputIdsTensor = new ort.Tensor("int64", idsBigInt, [1, seqLen]);
-  const inputLengthsTensor = new ort.Tensor("int64", new BigInt64Array([BigInt(seqLen)]), [1]);
-
-  const noiseScale = 0.667;
-  const noiseW = 0.8;
-  const scalesArray = new Float32Array([noiseScale, 1.0 / Math.max(speed, 0.1), noiseW]);
-  const scalesTensor = new ort.Tensor("float32", scalesArray, [3]);
+  const seqLen = inputIds.length;
+  const inputIdsTensor = new ort.Tensor("int64", inputIds, [1, seqLen]);
+  const speedTensor = new ort.Tensor("float32", new Float32Array([speed]), [1]);
 
   const feeds = {
-    input: inputIdsTensor,
-    input_lengths: inputLengthsTensor,
-    scales: scalesTensor,
+    input_ids: inputIdsTensor,
+    speed: speedTensor,
   };
-
-  if (ortSession.inputNames.includes("sid")) {
-    const speakerProfile = SPEAKERS[speakerKey] || SPEAKERS.arbo;
-    const baseSid = (speakerProfile.id !== undefined) ? speakerProfile.id : 0;
-    feeds.sid = new ort.Tensor("int64", new BigInt64Array([BigInt(baseSid)]), [1]);
-  }
 
   // 3. WebAssembly SIMD ONNX Inference
   const results = await ortSession.run(feeds);
-  const rawAudio = results.output.data; // Float32Array at 22,050 Hz
+  const rawAudio = results.waveform.data; // Float32Array at 24,000 Hz
   const inferenceTimeMs = performance.now() - startTime;
 
   // 4. Acoustic DSP Morphing (Pitch Shift + Biquad Formant EQ)
-  let processedAudio = await applyAcousticDsp(rawAudio, 22050, dspRecipe);
+  let processedAudio = await applyAcousticDsp(rawAudio, 24000, dspRecipe);
 
   // Peak normalization
   processedAudio = peakNormalize(processedAudio, 0.95);
 
   // 5. Encode 16-bit PCM WAV
-  const wavBlob = encodeWav(processedAudio, 22050);
+  const wavBlob = encodeWav(processedAudio, 24000);
   if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
   currentBlobUrl = URL.createObjectURL(wavBlob);
 
@@ -422,7 +412,7 @@ async function runSynthesis({ text, lang, speakerKey, dspRecipe, speed, modeLabe
   btnDownload.download = `arbotts_${modeLabel.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}.wav`;
 
   // 7. Metrics
-  const durationSec = processedAudio.length / 22050;
+  const durationSec = processedAudio.length / 24000;
   const rtf = (inferenceTimeMs / 1000) / durationSec;
 
   statPersona.textContent = modeLabel;

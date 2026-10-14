@@ -2,7 +2,7 @@
  * Lightweight 16-bit Mono PCM WAV Encoder for Browser Audio.
  */
 
-export function encodeWav(samples, sampleRate = 22050) {
+export function encodeWav(samples, sampleRate = 24000) {
   const numSamples = samples.length;
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
