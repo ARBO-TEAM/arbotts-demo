@@ -14,14 +14,14 @@ export const SPEAKERS = {
     name: "Arbo",
     persona: "Penyiar Berita Formal",
     icon: "🎙️",
-    description: "Berwibawa, konsonan tegas, dan resonansi seimbang.",
+    description: "Berwibawa, konsonan tegas, dan resonansi seimbang (Master 24 kHz).",
     dsp: {}
   },
   bimo: {
     id: 0,
     gender: "male",
     name: "Bimo",
-    persona: "Baritone Berat & Berwibawa",
+    persona: "Baritone Berat & Berbobot",
     icon: "📢",
     description: "Resonansi dada tebal, berbobot, wibawa matang untuk profil & dokumenter.",
     dsp: {
@@ -37,7 +37,7 @@ export const SPEAKERS = {
     icon: "⚡",
     description: "Tempo dinamis, ramah, artikulasi konsonan letup jernih.",
     dsp: {
-      pitch_shift_semitones: 1.0
+      pitch_shift_semitones: 0.8
     }
   },
   danu: {
@@ -52,54 +52,19 @@ export const SPEAKERS = {
       lowpass_warmth_hz: 6000
     }
   },
-  arba: {
+  bayu: {
     id: 0,
-    gender: "female",
-    name: "Arba",
-    persona: "Presenter Berita Profesional",
-    icon: "👩",
-    description: "Artikulasi jernih, santun, lugas dengan kehangatan mid-range.",
+    gender: "male",
+    name: "Bayu",
+    persona: "Penyiar Radio Komersial",
+    icon: "📻",
+    description: "Dinamis, intonasi cerah, vokal terbuka untuk promosi & podcast.",
     dsp: {
-      pitch_shift_semitones: 9.2,
-      highpass_cut_hz: 180,
-      presence_boost_hz: 3800,
-      presence_gain: 0.3,
-      formant_peak_hz: 1400,
-      formant_gain: 0.25
-    }
-  },
-  sita: {
-    id: 0,
-    gender: "female",
-    name: "Sita",
-    persona: "Asisten Interaktif Cerdas",
-    icon: "🤖",
-    description: "Ceria, bersahabat, tempo percakapan interaktif cerdas.",
-    dsp: {
-      pitch_shift_semitones: 11.2,
-      highpass_cut_hz: 200,
-      presence_boost_hz: 4200,
-      presence_gain: 0.35,
-      formant_peak_hz: 1600,
-      formant_gain: 0.3
-    }
-  },
-  maya: {
-    id: 0,
-    gender: "female",
-    name: "Maya",
-    persona: "Narator Tenang & Storyteller",
-    icon: "📖",
-    description: "Lembut, santai, tekstur hangat dengan ritme halus untuk dongeng.",
-    dsp: {
-      pitch_shift_semitones: 8.2,
-      highpass_cut_hz: 160,
-      formant_peak_hz: 1300,
-      formant_gain: 0.2,
-      lowpass_warmth_hz: 6000
+      presence_boost_hz: 3600,
+      presence_gain: 0.25
     }
   }
-};
+};;
 
 /**
  * Linear resampler
@@ -367,7 +332,7 @@ export function analyzeReferenceAudio(audioBuffer) {
   const baseSpeakerId = isFemale ? 1 : 0;
 
   // Semitone difference relative to Arbo base model (~120 Hz)
-  const semitones = Math.max(-4.0, Math.min(14.0, 12 * Math.log2(f0 / 120)));
+  const semitones = Math.max(-2.5, Math.min(2.0, 12 * Math.log2(f0 / 120)));
 
   const recipe = {
     pitch_shift_semitones: parseFloat(semitones.toFixed(2))
